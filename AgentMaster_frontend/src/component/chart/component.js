@@ -1,68 +1,64 @@
-//주식 상세 페이지
-import React, { useState, useRef,useEffect} from 'react';
-import { useLocation } from 'react-router-dom';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
+import { useLocation, useNavigate } from 'react-router-dom';
 import Modal from 'react-modal';
 import ReactApexChart from 'react-apexcharts';
-import { useNavigate } from 'react-router-dom';
 import axios from 'axios';
 import { LoadingOutlined } from '@ant-design/icons';
 
-//그래프 아래 관련 뉴스 띄우는 부분
+// 📌 공통 유틸: 쿼리 파라미터 가져오기
+const useQuery = () => {
+  return new URLSearchParams(window.location.search);
+};
+
+// 📌 뉴스 기사 리스트
 export function ArticleList() {
-  const [selectedArticle, setSelectedArticle] = useState([]);
+  const [articles, setArticles] = useState([]);
+  const [selectedArticle, setSelectedArticle] = useState(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
-  const [articles, setArticles] = useState([
-    { id: 1, publisher: '신문사1', title: '뉴스 기사 1', summary: '기사 1 요약 문장입니다.' },
-    { id: 2, publisher: '신문사2', title: '뉴스 기사 2', summary: '기사 2 요약 문장입니다.' },
-    { id: 3, publisher: '신문사3', title: '뉴스 기사 3', summary: '기사 3 요약 문장입니다.' },
-    { id: 4, publisher: '신문사4', title: '뉴스 기사 4', summary: '기사 4 요약 문장입니다.' },
-    { id: 5, publisher: '신문사5', title: '뉴스 기사 4', summary: '기사 4 요약 문장입니다.' },
-  ]); // 초기값 빈 배열로 설정
   const [loading, setLoading] = useState(true);
+  const navigate = useNavigate();
+  const query = useQuery();
 
-  const getArticle=async () =>{
-   try{
-        //백엔드 코드 추가
-        const queryParams = new URLSearchParams(window.location.search);
-        const stockCode = queryParams.get('keyword');
-    const getArticleRep= await axios.get(`http://localhost:8080/article?stockCode=${stockCode}`);
-    setArticles(getArticleRep.data.articles);
-    setLoading(false); // 로딩 완료
-   }catch (error) {
-    setLoading(false);
-  }
-  } 
   useEffect(() => {
-    getArticle();
-  }, []); // 빈 배열을 전달하여 한 번만 데이터를 가져오도록 설정
+    const fetchArticles = async () => {
+      try {
+        const stockCode = query.get('keyword');
+        const { data } = await axios.get(`http://localhost:8080/article?stockCode=${stockCode}`);
+        setArticles(data.articles);
+      } catch (err) {
+        console.error(err);
+      } finally {
+        setLoading(false);
+      }
+    };
 
-  const openModal = (article) => {
+    fetchArticles();
+  }, [query]);
+
+  const openModal = useCallback((article) => {
     setSelectedArticle(article);
     setIsModalOpen(true);
-  };
+  }, []);
 
-  const closeModal = () => {
-    setSelectedArticle(null);
+  const closeModal = useCallback(() => {
     setIsModalOpen(false);
-  };
+    setSelectedArticle(null);
+  }, []);
 
-  const navigate = useNavigate();
-  const handleClick = () => {
+  const goToDetail = () => {
     navigate(`/NewsDetail`, { state: selectedArticle });
   };
 
   return (
     <div className="Article">
       {loading ? (
-        <div className="loading_main">
-          <LoadingOutlined />loading...
-        </div>
+        <div className="loading_main"><LoadingOutlined /> loading...</div>
       ) : (
         <ul style={{ listStyle: 'none', padding: 10 }}>
           {articles.map((article) => (
             <li key={article.articleId}>
               <p className="article-title" onClick={() => openModal(article)}>
-                {`[${article.publisher}]  ${article.title}`}
+                [{article.publisher}] {article.title}
               </p>
               <hr className="article-bottom" />
             </li>
@@ -78,316 +74,197 @@ export function ArticleList() {
         {selectedArticle && (
           <div className="Modal_main">
             <div className="ModalTop">
-              <p className="ModalMove" onClick={handleClick}>
-                &lt;- 상세페이지로
-              </p>
-              <p className="ModalClose" onClick={closeModal}>
-                X
-              </p>
+              <p className="ModalMove" onClick={goToDetail}>&lt;- 상세페이지로</p>
+              <p className="ModalClose" onClick={closeModal}>X</p>
             </div>
-            {/*백엔드 코드 변경 : selectedArticle.articleContent -> selectedArticle.summary */}
-            {selectedArticle.summary ? (
-              <div className="ModalBox">
-                <p className="ModalText">{selectedArticle.summary}</p>
-              </div>
-            ) : (
-              <div className="ModalBox">
-                <p className="ModalText">기사 내용이 없습니다.</p>
-              </div>
-            )}
+            <div className="ModalBox">
+              <p className="ModalText">{selectedArticle.summary || '기사 내용이 없습니다.'}</p>
+            </div>
           </div>
         )}
       </Modal>
     </div>
   );
-   }  
+}
 
+// 📌 주식 테이블
 export function Table() {
-  const [data, setData] = useState([{"stockDiff":'-',"stockStartPrice":'-',"stockhighPrice":'-',"stocklowPrice":'-',
-  "stockTradingAmount":'-',"stockTradingTotalPrice":'-',
-  }]);
+  const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState(null);
+  const query = useQuery();
 
   useEffect(() => {
+    const fetchTableData = async () => {
+      try {
+        const stockCode = query.get('keyword');
+        const { data } = await axios.get(`http://localhost:8080/stockData?stockCode=${stockCode}`);
+        setData(data.StockBase[0]);
+      } catch (err) {
+        console.error(err);
+      } finally {
+        setLoading(false);
+      }
+    };
 
-    //백엔드 코드 추가
-    const queryParams = new URLSearchParams(window.location.search);
-    const stockCode = queryParams.get('keyword');
-    //추가 종료
-    // Axios를 사용하여 데이터를 백엔드에서 요청
-    //백엔드 코드 수정(단순 ''을 백틱 ``으로 수정)
-    axios.get(`http://localhost:8080/stockData?stockCode=${stockCode}`) //url 임시 설정
-      .then((response) => {
-        // 요청이 성공하면 데이터 업데이트
-        //백엔드 코드 수정 StockBase 추가
-        setData(response.data.StockBase);
-        setLoading(false); // 로딩 완료
-      })
-      .catch((err) => {
-        // 요청이 실패하면 에러 처리
-        setError(err);
-        setLoading(false); // 로딩 완료
-      });
-  }, []);
+    fetchTableData();
+  }, [query]);
+
+  if (loading || !data) {
+    return <div className="loading_main"><LoadingOutlined /> loading...</div>;
+  }
 
   return (
-    <div>
-      <table className="custom-table">
-        <tbody>
-          <tr>
-            <th className="divider">전일비</th>
-            <th className="divider">시가</th>
-            <th className="divider">금일 최고가</th>
-          </tr>
-          <tr>
-            <td>{data[0].stockDiff}</td>
-            <td>{data[0].stockStartPrice}</td>
-            <td>{data[0].stockhighPrice}</td>
-          </tr>
-          <tr>
-            <th className="divider">금일 최저가</th>
-            <th className="divider">거래량</th>
-            <th className="divider">거래대금</th>
-          </tr>
-          <tr>
-            <td>{data[0].stocklowPrice}</td>
-            <td>{data[0].stockTradingAmount}</td>
-            <td>{data[0].stockTradingTotalPrice}</td>
-          </tr>
-        </tbody>
-      </table>
+    <table className="custom-table">
+      <tbody>
+        <tr>
+          <th className="divider">전일비</th>
+          <th className="divider">시가</th>
+          <th className="divider">금일 최고가</th>
+        </tr>
+        <tr>
+          <td>{data.stockDiff}</td>
+          <td>{data.stockStartPrice}</td>
+          <td>{data.stockhighPrice}</td>
+        </tr>
+        <tr>
+          <th className="divider">금일 최저가</th>
+          <th className="divider">거래량</th>
+          <th className="divider">거래대금</th>
+        </tr>
+        <tr>
+          <td>{data.stocklowPrice}</td>
+          <td>{data.stockTradingAmount}</td>
+          <td>{data.stockTradingTotalPrice}</td>
+        </tr>
+      </tbody>
+    </table>
+  );
+}
+
+// 📌 단일 종목 차트
+export function Rechart1() {
+  const [stockData, setStockData] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const query = useQuery();
+
+  useEffect(() => {
+    const fetchChart = async () => {
+      try {
+        const stockCode = query.get('keyword');
+        const { data } = await axios.get(`http://localhost:8080/ChartData?stockId=${stockCode}`);
+        setStockData(data.ChartData);
+      } catch (err) {
+        console.error(err);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchChart();
+  }, [query]);
+
+  const series = useMemo(() => [{
+    name: '종목가',
+    data: stockData.map(item => ({
+      x: new Date(item.stockDate).getTime(),
+      y: item.stockPrice,
+    }))
+  }], [stockData]);
+
+  const options = useMemo(() => ({
+    chart: { type: 'line', zoom: { enabled: false } },
+    stroke: { curve: 'smooth' },
+    dataLabels: { enabled: false },
+    xaxis: { type: 'datetime' },
+    yaxis: { title: { text: '가격' } },
+    tooltip: {
+      x: { format: 'dd MMM yyyy' },
+      custom: ({ dataPointIndex }) => {
+        const item = stockData[dataPointIndex];
+        if (!item) return '';
+        return `
+          <div class="custom-tooltip">
+            <span>종목가: ${item.stockPrice}</span><br/>
+            <span>전일대비: ${item.stockDiff}</span><br/>
+            <span>등락률: ${item.stockRange}%</span>
+          </div>`;
+      }
+    }
+  }), [stockData]);
+
+  return (
+    <div className="Rechart1">
+      {loading ? (
+        <div className="loading_main"><LoadingOutlined /> loading...</div>
+      ) : (
+        <ReactApexChart options={options} series={series} type="line" height={350} />
+      )}
     </div>
   );
 }
 
-
-export function Rechart1() {
-const [stockData, setStockData] = useState([]);
-const [loading, setLoading] = useState(true);
-const [error, setError] = useState(null);
-
-const getChart1 = async () => {
-  try{
-    const queryParams = new URLSearchParams(window.location.search);
-    const keywordFromURL = queryParams.get('keyword');
-    //백엔드 코드 수정(단순 ''을 백틱 ``으로 수정)
-    const getChart1Rep= await axios.get(`http://localhost:8080/ChartData?stockId=${keywordFromURL}`);
-    setStockData(getChart1Rep.data.ChartData);
-    setLoading(false);
-  }catch(error) {
-    setLoading(false);
-  }
-}
-useEffect(() => {
- getChart1();
-}, []);
-
-  const seriesData = [{
-    name: "종목가",
-    data: stockData.map(item => ({
-      x: new Date(item.stockDate).getTime(),
-      y: item.stockPrice,
-      stockDiff: item.stockDiff,
-      stockRange: item.stockRange
-    }))
-  }];
-
-  const options = {
-    chart: {
-      height: 350,
-      type: 'line',
-      zoom: {
-        enabled: false
-      }
-    },
-    dataLabels: {
-      enabled: false
-    },
-    stroke: {
-      curve: 'smooth'
-    },
-    xaxis: {
-      type: 'datetime',
-    },
-    yaxis: {
-      title: {
-        text: '가격'
-      },
-    },
-    tooltip: {
-      x: {
-        format: 'dd MMM yyyy'
-      },
-      y: {
-        title: {
-          formatter: (val) => val 
-        }
-      },
-      custom: ({ series, seriesIndex, dataPointIndex, w }) => {
-        const item = stockData[dataPointIndex];
-        if (item && item.stockDiff !== undefined && item.stockRange !== undefined) {
-          return (
-            `<div class="custom-tooltip">
-              <span>종목가: ${item.stockPrice}</span><br>
-              <span>전일대비: ${item.stockDiff}</span><br>
-              <span>등락률: ${item.stockRange}%</span>
-            </div>`
-          );
-        }
-        return '';
-      }
-    }
-  };
-
-  return (
-    <div className='Rechart1'>
-      {loading ? (
-        <div className='loading_main'><LoadingOutlined />loading...</div>
-      ) : (
-        <ReactApexChart options={options} series={seriesData} type="line" height={350} />
-      )}
-    </div>
-  );  
-}
-
+// 📌 비교 차트
 export function Rechart2({ keywordFromChartMain, keywordFromSearch2 }) {
-  const location = useLocation();
-  const [keyword, setKeyword] = useState('');
-  const [searchKeyword, setSearchKeyword] = useState('');
   const [chartData, setChartData] = useState([]);
   const [searchData, setSearchData] = useState([]);
-  const [date, setDate] = useState([]);
+  const [xDates, setXDates] = useState([]);
   const [loading, setLoading] = useState(true);
 
-  useEffect(() => {
-    if (location.state) {
-      setKeyword(decodeURIComponent(location.state.keyword));
-    } else {
-      setKeyword('');
+  const fetchChart = async (keyword, setData) => {
+    try {
+      const { data } = await axios.get(`http://localhost:8080/ChartData?stockId=${keyword}`);
+      setData(data.ChartData);
+      setXDates(prev => [...new Set([...prev, ...data.ChartData.map(i => i.stockDate)])]);
+    } catch (err) {
+      console.error('Error fetching data:', err);
     }
-  }, [location]);
+  };
 
   useEffect(() => {
-    setSearchKeyword(keywordFromSearch2);
-  }, [keywordFromSearch2]);
-
-  useEffect(() => {
-    axios
-    .get(`http://localhost:8080/ChartData?stockId=${keywordFromChartMain}`)
-      // .get(`http://localhost:8080/ChartData?stockId=${keywordFromChartMain}`)
-      .then((response) => {
-        setChartData(response.data.ChartData);
-        updateXAxisCategories(response.data.ChartData);
-        setLoading(false);
-      })
-      .catch((error) => {
-        console.error('Error fetching chart data:', error);
-        setLoading(false);
-      });
-
-    axios
-      //프론트 임시코드
-      .get(`http://localhost:8080/ChartData?stockId=${keywordFromSearch2}`)
-      .then((response) => {
-        setSearchData(response.data.ChartData);
-        updateXAxisCategories(response.data.ChartData);
-        setLoading(false);
-      })
-      .catch((error) => {
-        console.error('Error fetching search data:', error);
-        setLoading(false);
-      });
+    setLoading(true);
+    Promise.all([
+      fetchChart(keywordFromChartMain, setChartData),
+      fetchChart(keywordFromSearch2, setSearchData)
+    ]).finally(() => setLoading(false));
   }, [keywordFromChartMain, keywordFromSearch2]);
 
-  const updateXAxisCategories = (data) => {
-    const uniqueDates = [...new Set(data.map((item) => item.stockDate))];
-    setDate(uniqueDates); 
-  };
+  const series = useMemo(() => {
+    const result = [{
+      name: keywordFromChartMain,
+      data: chartData.map(item => item.stockPrice),
+    }];
+    if (searchData.length) {
+      result.push({
+        name: keywordFromSearch2,
+        data: searchData.map(item => item.stockPrice),
+      });
+    }
+    return result;
+  }, [chartData, searchData, keywordFromChartMain, keywordFromSearch2]);
 
-  const seriesData = [
-    {
-      name: [keywordFromChartMain],
-      data: chartData.map((data) => data.stockPrice),
-    },
-  ];
-
-  if (searchData.length > 0) {
-    seriesData.push({
-      name: [keywordFromSearch2],
-      data: searchData.map((data) => data.stockPrice),
-    });
-  }
-
-  const options = {
-    chart: {
-      height: 350,
-      type: 'line',
-      zoom: {
-        enabled: false,
-      },
-    },
-    dataLabels: {
-      enabled: false,
-    },
-    stroke: {
-      width: [5, 7, 5],
-      curve: 'straight',
-      dashArray: [0, 8, 5],
+  const options = useMemo(() => ({
+    chart: { type: 'line', zoom: { enabled: false } },
+    stroke: { width: [5, 5], curve: 'straight', dashArray: [0, 4] },
+    xaxis: { categories: xDates },
+    tooltip: {
+      y: [{ title: { formatter: val => `${val} 종목가` } }, { title: { formatter: val => `${val} 종목가` } }],
     },
     legend: {
-      tooltipHoverFormatter: function (val, opts) {
-       let legendText = val + ' - ' + opts.w.globals.series[opts.seriesIndex][opts.dataPointIndex];
-        
-        if (opts.seriesIndex === 0) {
-          legendText += ` (${keywordFromChartMain})`;
-        } else if (opts.seriesIndex === 1) {
-          legendText += ` (${keywordFromSearch2})`;
-        }
-  
-        return legendText;
-      },
+      tooltipHoverFormatter: (val, opts) => {
+        return `${val} - ${opts.w.globals.series[opts.seriesIndex][opts.dataPointIndex]} (${opts.seriesIndex === 0 ? keywordFromChartMain : keywordFromSearch2})`;
+      }
     },
-    markers: {
-      size: 0,
-      hover: {
-        sizeOffset: 6,
-      },
-    },
-    xaxis: {
-      categories: date, 
-    },
-    tooltip: {
-      y: [
-        {
-          title: {
-            formatter: function (val) {
-              return val + ' 종목가';
-            },
-          },
-        },
-        {
-          title: {
-            formatter: function (val) {
-              return val + ' 종목가';
-            },
-          },
-        },
-      ],
-    },
-    grid: {
-      borderColor: '#D5D5D5',
-    },
-  };
+    grid: { borderColor: '#D5D5D5' },
+    dataLabels: { enabled: false },
+  }), [xDates, keywordFromChartMain, keywordFromSearch2]);
 
   return (
     <div className="Rechart2">
       {loading ? (
-        <div className='loading_main'><LoadingOutlined />loading...</div>
+        <div className="loading_main"><LoadingOutlined /> loading...</div>
       ) : (
-        <ReactApexChart options={options} series={seriesData} type="line" height={400} />
+        <ReactApexChart options={options} series={series} type="line" height={400} />
       )}
     </div>
   );
-  
 }
