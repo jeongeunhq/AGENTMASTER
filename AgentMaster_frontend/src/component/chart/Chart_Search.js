@@ -104,7 +104,7 @@ function Chart_Search() {
         }
     };
     
-
+    const SearchResult = React.memo(Search_result);
     return (
         <form className ="chart_search" onSubmit={handleSearch}>
             <Search_bar 
@@ -113,7 +113,7 @@ function Chart_Search() {
                 handleSearchBarClick={handleSearchBarClick} 
             />
             <Search_button handleSearch={handleSearch} />
-            <Search_result 
+            <SearchResult
                 searchBarRef={searchBarRef} 
                 isSearchBarFocused={isSearchBarFocused} 
                 relatedSearches={relatedSearches}
